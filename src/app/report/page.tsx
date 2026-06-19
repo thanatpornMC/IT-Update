@@ -1,136 +1,220 @@
 'use client'
 
+import { mockTasks, getOverdueTasks } from '@/data/mockData'
+import { APPLICATIONS } from '@/types'
 import Header from '@/components/Header'
 import StatusBadge from '@/components/StatusBadge'
 import PriorityBadge from '@/components/PriorityBadge'
-import ProgressBar from '@/components/ProgressBar'
-import { mockTasks, getOverdueTasks } from '@/data/mockData'
-import { APPLICATIONS } from '@/types'
+import { AlertTriangle, CheckCircle2, PlayCircle, Calendar, TrendingUp, ShieldAlert } from 'lucide-react'
 
 export default function ReportPage() {
   const today = new Date().toISOString().split('T')[0]
   const thisMonth = today.slice(0, 7)
 
-  const inProgressTasks = mockTasks.filter((t) => t.status === 'in-progress')
-  const doneTasks = mockTasks.filter((t) => t.status === 'done' && t.completedDate?.startsWith(thisMonth))
-  const todoTasks = mockTasks
-    .filter((t) => t.status === 'todo')
-    .sort((a, b) => {
-      const order = { urgent: 0, high: 1, medium: 2, low: 3 }
-      return order[a.priority] - order[b.priority]
-    })
-  const blockers = mockTasks.filter((t) => t.status === 'blocked' || t.status === 'waiting')
+  const inProgress = mockTasks.filter((t) => t.status === 'in-progress')
+  const completed = mockTasks.filter((t) => t.status === 'done')
+  const completedThisMonth = completed.filter((t) => t.completedDate?.startsWith(thisMonth))
+  const upcoming = mockTasks.filter((t) => t.status === 'todo').sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+  const blocked = mockTasks.filter((t) => t.status === 'blocked' || t.status === 'waiting')
   const overdue = getOverdueTasks()
-  const urgentHigh = mockTasks.filter((t) => (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'done' && t.status !== 'cancelled')
+  const urgent = mockTasks.filter((t) => (t.priority === 'urgent' || t.priority === 'high') && t.status !== 'done' && t.status !== 'cancelled')
 
-  const Section = ({ title, count, color, children }: { title: string; count: number; color: string; children: React.ReactNode }) => (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-6">
-      <div className={`px-5 py-3 border-b border-gray-100 flex items-center justify-between ${color}`}>
-        <h2 className="font-semibold text-gray-800">{title}</h2>
-        <span className="text-sm font-bold bg-white bg-opacity-70 px-2 py-0.5 rounded-full text-gray-700">{count}</span>
-      </div>
-      <div className="divide-y divide-gray-50">{children}</div>
-    </div>
-  )
-
-  const TaskRow = ({ task, showRemark = true }: { task: typeof mockTasks[0]; showRemark?: boolean }) => (
-    <div className="px-5 py-3 flex items-center justify-between gap-3">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap mb-0.5">
-          <span className="text-xs font-mono text-gray-400">{task.id}</span>
-          <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{task.application}</span>
-        </div>
-        <p className="font-medium text-gray-800 text-sm">{task.title}</p>
-        {showRemark && task.remark && (
-          <p className="text-xs text-amber-700 mt-0.5">{task.remark}</p>
-        )}
-      </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <PriorityBadge priority={task.priority} size="sm" />
-        <StatusBadge status={task.status} size="sm" />
-        <div className="w-24">
-          <ProgressBar progress={task.progress} size="sm" />
-        </div>
-        <span className="text-xs text-gray-400 w-24 text-right">{task.owner}</span>
-      </div>
-    </div>
-  )
+  const appSummary = APPLICATIONS.map((app) => {
+    const tasks = mockTasks.filter((t) => t.application === app.name)
+    const ip = tasks.filter((t) => t.status === 'in-progress')
+    return { app, inProgress: ip }
+  }).filter((a) => a.inProgress.length > 0)
 
   return (
     <div>
       <Header
         title="Management Report"
-        subtitle={`Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+        subtitle={`Executive summary — ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`}
       />
 
-      {/* Summary Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {APPLICATIONS.map((app) => {
-          const tasks = mockTasks.filter((t) => t.application === app.name)
-          const done = tasks.filter((t) => t.status === 'done').length
-          return (
-            <div key={app.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-              <p className="text-sm font-semibold text-gray-700">{app.name}</p>
-              <div className="mt-2">
-                <ProgressBar progress={tasks.length > 0 ? Math.round((done / tasks.length) * 100) : 0} size="sm" />
-              </div>
-              <p className="text-xs text-gray-400 mt-1">{done}/{tasks.length} done</p>
-            </div>
-          )
-        })}
+      {/* Quick KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+        {[
+          { label: 'Total Tasks', value: mockTasks.length, cls: 'bg-gray-50 text-gray-700' },
+          { label: 'In Progress', value: inProgress.length, cls: 'bg-amber-50 text-amber-700' },
+          { label: 'Completed', value: completed.length, cls: 'bg-green-50 text-green-700' },
+          { label: 'This Month Done', value: completedThisMonth.length, cls: 'bg-teal-50 text-teal-700' },
+          { label: 'Blocked / Waiting', value: blocked.length, cls: 'bg-red-50 text-red-700' },
+          { label: 'Overdue', value: overdue.length, cls: 'bg-orange-50 text-orange-700' },
+        ].map(({ label, value, cls }) => (
+          <div key={label} className={`rounded-xl p-4 ${cls} border border-white/50 shadow-sm`}>
+            <p className="text-3xl font-bold">{value}</p>
+            <p className="text-xs font-medium opacity-70 mt-1">{label}</p>
+          </div>
+        ))}
       </div>
 
-      {/* In Progress */}
-      <Section title="What We Are Working On Now" count={inProgressTasks.length} color="bg-amber-50">
-        {inProgressTasks.map((t) => <TaskRow key={t.id} task={t} />)}
-        {inProgressTasks.length === 0 && <p className="text-sm text-gray-400 px-5 py-4">Nothing in progress.</p>}
-      </Section>
-
-      {/* Done this month */}
-      <Section title={`Completed This Month (${thisMonth})`} count={doneTasks.length} color="bg-green-50">
-        {doneTasks.map((t) => <TaskRow key={t.id} task={t} />)}
-        {doneTasks.length === 0 && <p className="text-sm text-gray-400 px-5 py-4">No completed tasks this month.</p>}
-      </Section>
-
-      {/* Overdue */}
-      {overdue.length > 0 && (
-        <Section title="Overdue Items" count={overdue.length} color="bg-red-50">
-          {overdue.map((t) => (
-            <div key={t.id} className="px-5 py-3 flex items-center justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="text-xs font-mono text-gray-400">{t.id}</span>
-                  <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{t.application}</span>
+      <div className="space-y-6">
+        {/* What we're doing now */}
+        <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-4 bg-amber-50 border-b border-amber-100">
+            <PlayCircle size={18} className="text-amber-600" />
+            <h2 className="font-bold text-amber-800">What We Are Doing Now</h2>
+            <span className="ml-auto text-xs bg-amber-600 text-white px-2 py-0.5 rounded-full">{inProgress.length} tasks</span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {appSummary.map(({ app, inProgress: ip }) => (
+              <div key={app.id} className="px-5 py-4">
+                <h3 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+                  {app.name}
+                </h3>
+                <div className="space-y-2 ml-4">
+                  {ip.map((t) => (
+                    <div key={t.id} className="flex items-start justify-between gap-3 text-sm">
+                      <div className="flex-1">
+                        <span className="font-medium text-gray-700">{t.title}</span>
+                        <span className="text-gray-400 ml-2">— {t.owner}</span>
+                        {t.remark && <p className="text-xs text-gray-400 mt-0.5 italic">{t.remark}</p>}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-gray-400">{t.progress}%</span>
+                        <PriorityBadge priority={t.priority} size="sm" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <p className="font-medium text-gray-800 text-sm">{t.title}</p>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <StatusBadge status={t.status} size="sm" />
-                <span className="text-xs text-red-600 font-semibold">Due {t.dueDate}</span>
-                <span className="text-xs text-gray-400">{t.owner}</span>
+            ))}
+          </div>
+        </section>
+
+        {/* What we completed */}
+        <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-4 bg-green-50 border-b border-green-100">
+            <CheckCircle2 size={18} className="text-green-600" />
+            <h2 className="font-bold text-green-800">What We Already Completed</h2>
+            <span className="ml-auto text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">{completed.length} tasks</span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {completed.map((t) => (
+              <div key={t.id} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-gray-50">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-medium">{t.application}</span>
+                    <span className="font-medium text-gray-800 text-sm">{t.title}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">Owner: {t.owner} · Completed: {t.completedDate}</p>
+                </div>
+                <StatusBadge status="done" size="sm" />
               </div>
+            ))}
+          </div>
+        </section>
+
+        {/* What's next */}
+        <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-4 bg-blue-50 border-b border-blue-100">
+            <Calendar size={18} className="text-blue-600" />
+            <h2 className="font-bold text-blue-800">What We Will Do Next</h2>
+            <span className="ml-auto text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">{upcoming.length} tasks</span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {upcoming.map((t) => (
+              <div key={t.id} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-gray-50">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-medium">{t.application}</span>
+                    <span className="font-medium text-gray-800 text-sm">{t.title}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">Owner: {t.owner} · Planned start: {t.startDate} · Due: {t.dueDate}</p>
+                </div>
+                <PriorityBadge priority={t.priority} size="sm" />
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Key Blockers */}
+        {blocked.length > 0 && (
+          <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2 px-5 py-4 bg-red-50 border-b border-red-100">
+              <ShieldAlert size={18} className="text-red-600" />
+              <h2 className="font-bold text-red-800">Key Blockers & Waiting</h2>
+              <span className="ml-auto text-xs bg-red-600 text-white px-2 py-0.5 rounded-full">{blocked.length} tasks</span>
             </div>
-          ))}
-        </Section>
-      )}
+            <div className="divide-y divide-gray-50">
+              {blocked.map((t) => (
+                <div key={t.id} className="px-5 py-3 hover:bg-red-50 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-medium">{t.application}</span>
+                        <span className="font-medium text-gray-800 text-sm">{t.title}</span>
+                        <StatusBadge status={t.status} size="sm" />
+                      </div>
+                      {t.remark && (
+                        <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1 mt-1">{t.remark}</p>
+                      )}
+                      <p className="text-xs text-gray-400 mt-1">Owner: {t.owner} · Due: {t.dueDate}</p>
+                    </div>
+                    <PriorityBadge priority={t.priority} size="sm" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
-      {/* Key Blockers */}
-      <Section title="Key Blockers & Waiting" count={blockers.length} color="bg-purple-50">
-        {blockers.map((t) => <TaskRow key={t.id} task={t} />)}
-        {blockers.length === 0 && <p className="text-sm text-gray-400 px-5 py-4">No blockers.</p>}
-      </Section>
+        {/* High Priority */}
+        <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-5 py-4 bg-orange-50 border-b border-orange-100">
+            <TrendingUp size={18} className="text-orange-600" />
+            <h2 className="font-bold text-orange-800">High Priority Items</h2>
+            <span className="ml-auto text-xs bg-orange-600 text-white px-2 py-0.5 rounded-full">{urgent.length} tasks</span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {urgent.map((t) => (
+              <div key={t.id} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-orange-50 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-medium">{t.application}</span>
+                    <span className="font-medium text-gray-800 text-sm">{t.title}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">Owner: {t.owner} · Due: {t.dueDate}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <PriorityBadge priority={t.priority} size="sm" />
+                  <StatusBadge status={t.status} size="sm" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
 
-      {/* Upcoming Todo by Priority */}
-      <Section title="What's Next (By Priority)" count={todoTasks.length} color="bg-blue-50">
-        {todoTasks.map((t) => <TaskRow key={t.id} task={t} />)}
-        {todoTasks.length === 0 && <p className="text-sm text-gray-400 px-5 py-4">No upcoming tasks.</p>}
-      </Section>
-
-      {/* High Priority Active */}
-      <Section title="High Priority Items (Active)" count={urgentHigh.length} color="bg-orange-50">
-        {urgentHigh.map((t) => <TaskRow key={t.id} task={t} />)}
-        {urgentHigh.length === 0 && <p className="text-sm text-gray-400 px-5 py-4">No high priority active items.</p>}
-      </Section>
+        {/* Overdue */}
+        {overdue.length > 0 && (
+          <section className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2 px-5 py-4 bg-red-50 border-b border-red-100">
+              <AlertTriangle size={18} className="text-red-600" />
+              <h2 className="font-bold text-red-800">Overdue Items — Immediate Action Required</h2>
+              <span className="ml-auto text-xs bg-red-700 text-white px-2 py-0.5 rounded-full">{overdue.length} tasks</span>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {overdue.map((t) => (
+                <div key={t.id} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-red-50 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-medium">{t.application}</span>
+                      <span className="font-medium text-red-800 text-sm">{t.title}</span>
+                    </div>
+                    <p className="text-xs text-red-400 mt-0.5 font-medium">Owner: {t.owner} · Was due: {t.dueDate}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <StatusBadge status={t.status} size="sm" />
+                    <PriorityBadge priority={t.priority} size="sm" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   )
 }
